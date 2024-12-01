@@ -5,15 +5,14 @@
 #include <random>
 #include <sstream>
 #include <memory>
+#include <list> 
 
-// === Базовий клас для ігрових сутностей ===
 class GameEntity {
 public:
     virtual std::string toString() const = 0;
     virtual ~GameEntity() = default;
 };
 
-// === Клас предметів спорядження ===
 class Item : public GameEntity {
 private:
     std::string name;
@@ -32,9 +31,20 @@ public:
 
     int getAttackBoost() const { return attackBoost; }
     int getDefenseBoost() const { return defenseBoost; }
+
+    bool operator<(const Item& other) const {
+        return (attackBoost + defenseBoost) < (other.attackBoost + other.defenseBoost);
+    }
+
+    bool operator>(const Item& other) const {
+        return (attackBoost + defenseBoost) > (other.attackBoost + other.defenseBoost);
+    }
+
+    bool operator==(const Item& other) const {
+        return (attackBoost + defenseBoost) == (other.attackBoost + other.defenseBoost);
+    }
 };
 
-// === Базовий клас для персонажів ===
 class Character : public GameEntity {
 protected:
     std::string name;
@@ -43,7 +53,7 @@ protected:
     int defense;
     int level;
     int experience;
-    std::vector<Item> inventory;
+    std::list<Item> inventory; 
 
 public:
     Character(std::string name, int health, int attack, int defense)
@@ -90,10 +100,12 @@ public:
             levelUp();
         }
     }
+
+    const std::list<Item>& getInventory() const {
+        return inventory;
+    }
 };
 
-
-// === Успадковані класи персонажів ===
 class Warrior : public Character {
 public:
     Warrior(std::string name)
@@ -101,8 +113,8 @@ public:
 
     void levelUp() override {
         Character::levelUp();
-        attack += 5; // Воїн отримує більше атаки
-    }
+        attack += 5;      // Воїн отримує більше атаки
+    } 
 };
 
 class Mage : public Character {
@@ -112,15 +124,14 @@ public:
 
     void levelUp() override {
         Character::levelUp();
-        health += 5; // Маг отримує більше здоров'я
+        health += 5;     // Маг отримує більше здоров'я
     }
 
     int calculateDamage() const override {
-        return attack + (rand() % 10); // Маг має сильніший випадковий фактор
+        return attack + (rand() % 10);     // Маг має сильніший випадковий фактор
     }
 };
 
-// === Моделювання боїв ===
 class Battle {
 public:
     static void fight(Character& c1, Character& c2) {
@@ -148,18 +159,69 @@ public:
     }
 };
 
-
-// === Генерація персонажів і предметів ===
 template <typename T>
-T generateRandomCharacter(const std::string& name) {
-    if constexpr (std::is_same<T, Warrior>::value) {
-        return Warrior(name);
-    } else if constexpr (std::is_same<T, Mage>::value) {
-        return Mage(name);
-    } else {
-        throw std::invalid_argument("Unsupported character type");
+void insertionSort(std::list<T>& lst) {
+    for (auto it = std::next(lst.begin()); it != lst.end(); ++it) {
+        auto current = *it;
+        auto prev = std::prev(it);
+        while (prev != lst.begin() && *prev > current) {
+            *it = *prev;
+            --it;
+            prev = std::prev(it);
+        }
+        *it = current;
     }
 }
+
+template <typename T>
+void merge(std::list<T>& lst, std::list<T>& left, std::list<T>& right) {
+    auto itL = left.begin(), itR = right.begin();
+    while (itL != left.end() && itR != right.end()) {
+        if (*itL < *itR) {
+            lst.push_back(*itL);
+            ++itL;
+        } else {
+            lst.push_back(*itR);
+            ++itR;
+        }
+    }
+    lst.insert(lst.end(), itL, left.end());
+    lst.insert(lst.end(), itR, right.end());
+}
+
+template <typename T>
+void mergeSort(std::list<T>& lst) {
+    if (lst.size() <= 1) return;
+
+    auto mid = std::next(lst.begin(), lst.size() / 2);
+    std::list<T> left(lst.begin(), mid);
+    std::list<T> right(mid, lst.end());
+
+    mergeSort(left);
+    mergeSort(right);
+    lst.clear();
+    merge(lst, left, right);
+}
+
+template <typename T>
+void quickSort(std::list<T>& lst) {
+    if (lst.size() <= 1) return;
+
+    auto pivot = lst.front();
+    std::list<T> left, right;
+
+    for (auto it = std::next(lst.begin()); it != lst.end(); ++it) {
+        if (*it < pivot) left.push_back(*it);
+        else right.push_back(*it);
+     }
+
+    quickSort(left);
+    quickSort(right);
+    lst.clear();
+    lst.splice(lst.end(), left);
+    lst.push_back(pivot);
+    lst.splice(lst.end(), right);
+ }
 
 Item generateRandomItem() {
     static const std::vector<std::string> itemNames = {"Sword", "Shield", "Amulet", "Ring"};
@@ -169,35 +231,36 @@ Item generateRandomItem() {
     return Item(name, attackBoost, defenseBoost);
 }
 
-// === Сортування ===
-template <typename T>
-void insertionSort(std::vector<T>& vec) {
-    for (size_t i = 1; i < vec.size(); ++i) {
-        T key = vec[i];
-        int j = i - 1;
-        while (j >= 0 && vec[j] > key) {
-            vec[j + 1] = vec[j];
-            --j;
-        }
-        vec[j + 1] = key;
-    }
-}
-
-// === Основна програма ===
 int main() {
     srand(time(0));
 
-    // Генерація персонажів
-    Warrior warrior = generateRandomCharacter<Warrior>("Hero");
-    Mage mage = generateRandomCharacter<Mage>("Enemy");
+    Warrior warrior("Hero");
+    Mage mage("Enemy");
 
-    // Додавання предметів
-    warrior.addItem(generateRandomItem());
-    mage.addItem(generateRandomItem());
+    std::list<Item> items;
+    for (int i = 0; i < 5; ++i) {
+        items.push_back(generateRandomItem());
+    }
 
-    // Бій
+    std::cout << "Items before sorting:\n";
+    for (const auto& item : items) {
+        std::cout << "  - " << item.toString() << "\n";
+     }
+
+    insertionSort(items);  
+
+    std::cout << "\nItems after sorting (Insertion Sort):\n";
+    for (const auto& item : items) {
+        std::cout << "  - " << item.toString() << "\n";
+    }
+
+    // Додаємо найкращий предмет (перший після сортування) персонажам
+    if (!items.empty()) {
+        warrior.addItem(items.front());  
+        mage.addItem(items.front());     
+   }
+
     Battle::fight(warrior, mage);
-
 
     return 0;
 }
